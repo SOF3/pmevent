@@ -11,58 +11,56 @@ use pocketmine\plugin\Plugin;
 use pocketmine\Server;
 use SOFe\AwaitGenerator\Channel;
 use SOFe\AwaitGenerator\Traverser;
-
-final class PmEvent {
-	/** @var array<class-string<Event>, Mux<Event>> */
-	private static $muxStore = [];
-
-	/**
-	 * @template E of Event
-	 * @param class-string<E> $event
-	 * @param Closure(E): string $interpreter
-	 * @return Traverser<E>
-	 */
-	public static function watch(Plugin $plugin, string $event, string $key, Closure $interpreter) : Traverser {
-		if(!isset(self::$muxStore[$event])) {
-			$mux = new Mux($event, $interpreter);
-			$mux->init($plugin);
-			self::$muxStore[$event] = $mux;
-		}
-
-		/** @var Mux<E> $mux */
-		$mux = self::$muxStore[$event];
-		return $mux->subscribe($key);
-	}
-}
+use function spl_object_id;
 
 /**
  * @template E of Event
  * @internal
  */
-final class Mux {
+final class EventMux {
+	/** @var array<class-string<Event>, EventMux<Event>> */
+	private static $muxStore = [];
+
+	/**
+	 * @param class-string<E> $event
+	 * @param Closure(E): string $interpreter
+	 * @return Traverser<E>
+	 */
+	public static function watch(Plugin $plugin, string $event, string $key, Closure $interpreter) : Traverser {
+		if (!isset(self::$muxStore[$event])) {
+			$mux = new EventMux($event, $interpreter);
+			$mux->init($plugin);
+			self::$muxStore[$event] = $mux;
+		}
+
+		/** @var EventMux<E> $mux */
+		$mux = self::$muxStore[$event];
+		return $mux->subscribe($key);
+	}
+
 	/** @var array<string, Channel<E>[]> */
-	public array $index = [];
+	private array $index = [];
 
 	/**
 	 * @param class-string<E> $event
 	 * @param Closure(E): string $interpreter
 	 */
-	public function __construct(
+	private function __construct(
 		private string $event,
 		private Closure $interpreter,
 	) {
 	}
 
-	public function init(Plugin $plugin) : void {
+	private function init(Plugin $plugin) : void {
 		Server::getInstance()->getPluginManager()->registerEvent($this->event, $this->handle(...), EventPriority::MONITOR, $plugin);
 	}
 
 	/**
 	 * @param E $event
 	 */
-	public function handle($event) : void {
+	private function handle($event) : void {
 		$key = ($this->interpreter)($event);
-		foreach($this->index[$key] ?? [] as $channel) {
+		foreach ($this->index[$key] ?? [] as $channel) {
 			$channel->sendWithoutWait($event);
 		}
 	}
@@ -70,14 +68,14 @@ final class Mux {
 	/**
 	 * @return Traverser<E>
 	 */
-	public function subscribe(string $key) : Traverser {
+	private function subscribe(string $key) : Traverser {
 		$channel = new Channel;
 
 		$this->index[$key][spl_object_id($channel)] = $channel;
 
-		return Traverser::fromClosure(function() use($channel, $key) {
+		return Traverser::fromClosure(function() use ($channel, $key) {
 			try {
-				while(true) {
+				while (true) {
 					$event = yield from $channel->receive();
 					yield $event => Traverser::VALUE;
 				}
@@ -87,3 +85,4 @@ final class Mux {
 		});
 	}
 }
+
