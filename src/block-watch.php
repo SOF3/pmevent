@@ -17,8 +17,8 @@ use SOFe\AwaitGenerator\Traverser;
 use function count;
 use function spl_object_id;
 
-final class BlockWatch implements ChunkLoader, ChunkListener {
-	/** @var array<int, array<int, BlockWatch>> */
+final class Blocks implements ChunkLoader, ChunkListener {
+	/** @var array<int, array<int, self>> */
 	private static array $store = [];
 
 	/**
@@ -36,7 +36,7 @@ final class BlockWatch implements ChunkLoader, ChunkListener {
 		$chunkHash = World::chunkHash($chunkX, $chunkZ);
 
 		if (!isset(self::$store[$worldId][$chunkHash])) {
-			$loader = new BlockWatch($world);
+			$loader = new self($world);
 			$world->registerChunkLoader($loader, $chunkX, $chunkZ);
 			$world->registerChunkListener($loader, $chunkX, $chunkZ);
 			self::$store[$worldId][$chunkHash] = $loader;
@@ -68,7 +68,7 @@ final class BlockWatch implements ChunkLoader, ChunkListener {
 					$world->unregisterChunkListener($loader, $chunkX, $chunkZ);
 				}
 
-				if(count(self::$store[$worldId]) === 0) {
+				if (count(self::$store[$worldId]) === 0) {
 					unset(self::$store[$worldId]);
 				}
 			}

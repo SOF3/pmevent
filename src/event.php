@@ -17,23 +17,24 @@ use function spl_object_id;
  * @template E of Event
  * @internal
  */
-final class EventMux {
-	/** @var array<class-string<Event>, EventMux<Event>> */
+final class Events {
+	/** @var array<class-string<Event>, Events<Event>> */
 	private static $muxStore = [];
 
 	/**
-	 * @param class-string<E> $event
-	 * @param Closure(E): string $interpreter
-	 * @return Traverser<E>
+	 * @template E_ of Event
+	 * @param class-string<E_> $event
+	 * @param Closure(E_): string $interpreter
+	 * @return Traverser<E_>
 	 */
 	public static function watch(Plugin $plugin, string $event, string $key, Closure $interpreter) : Traverser {
 		if (!isset(self::$muxStore[$event])) {
-			$mux = new EventMux($event, $interpreter);
+			$mux = new self($event, $interpreter);
 			$mux->init($plugin);
 			self::$muxStore[$event] = $mux;
 		}
 
-		/** @var EventMux<E> $mux */
+		/** @var Events<E_> $mux */
 		$mux = self::$muxStore[$event];
 		return $mux->subscribe($key);
 	}
