@@ -23,20 +23,34 @@ final class Events {
 
 	/**
 	 * @template E_ of Event
-	 * @param class-string<E_> $event
+	 * @param class-string<E_>[] $events
 	 * @param Closure(E_): string $interpreter
 	 * @return Traverser<E_>
 	 */
-	public static function watch(Plugin $plugin, string $event, string $key, Closure $interpreter) : Traverser {
-		if (!isset(self::$muxStore[$event])) {
-			$mux = new self($event, $interpreter);
-			$mux->init($plugin);
-			self::$muxStore[$event] = $mux;
+	public static function watch(Plugin $plugin, array $events, string $key, Closure $interpreter) : Traverser {
+		$channels = [];
+		$finalizers = [];
+
+		foreach($events as $event) {
+			if (!isset(self::$muxStore[$event])) {
+				$mux = new self($event, $interpreter);
+				$mux->init($plugin);
+				self::$muxStore[$event] = $mux;
+			}
+
+			/** @var Events<E_> $mux */
+			$mux = self::$muxStore[$event];
+
+			[$channel, $finalize] = $mux->subscribe($key);
+			$channels[] = $channel;
+			$finalizers[] = $finalize;
 		}
 
-		/** @var Events<E_> $mux */
-		$mux = self::$muxStore[$event];
-		return $mux->subscribe($key);
+		return Util::traverseChannels($channels, function() use($finalizers) {
+			foreach($finalizers as $finalizer) {
+				$finalizer();
+			}
+		});
 	}
 
 	/** @var array<string, Channel<E>[]> */
@@ -67,23 +81,15 @@ final class Events {
 	}
 
 	/**
-	 * @return Traverser<E>
+	 * @return array{Channel<E>, Closure(): void}
 	 */
-	private function subscribe(string $key) : Traverser {
+	private function subscribe(string $key) : array {
 		$channel = new Channel;
-
 		$this->index[$key][spl_object_id($channel)] = $channel;
 
-		return Traverser::fromClosure(function() use ($channel, $key) {
-			try {
-				while (true) {
-					$event = yield from $channel->receive();
-					yield $event => Traverser::VALUE;
-				}
-			} finally {
-				unset($this->index[$key][spl_object_id($channel)]);
-			}
-		});
+		return [$channel, function() use ($channel, $key) {
+			// Do not GC $channel until this function returns
+			unset($this->index[$key][spl_object_id($channel)]);
+		}];
 	}
 }
-

@@ -1,10 +1,11 @@
 parameters:
 	ignoreErrors:
-		- # https://github.com/phpstan/phpstan/issues/6189
+		-
+			message: "#^Anonymous function should return T but returns Generator\\<mixed, array\\<int, string\\>\\|Generator\\|string\\|null, mixed, T\\>\\.$#"
+			count: 1
+			path: src/util.php
+
+		-
 			message: "#^While loop condition is always true\\.$#"
 			count: 1
-			path: src/event.php
-		- # https://github.com/phpstan/phpstan/issues/6189
-			message: "#^While loop condition is always true\\.$#"
-			count: 1
-			path: src/block-watch.php
+			path: src/util.php

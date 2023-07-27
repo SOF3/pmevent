@@ -49,28 +49,21 @@ final class Blocks implements ChunkLoader, ChunkListener {
 		$blockHash = World::chunkBlockHash($position->getFloorX(), $position->getFloorY(), $position->getFloorZ());
 		$loader->index[$blockHash][spl_object_id($channel)] = $channel;
 
-		return Traverser::fromClosure(function() use ($channel, $loader, $blockHash, $chunkHash, $worldId, $world, $chunkX, $chunkZ) {
-			try {
-				while (true) {
-					$event = yield from $channel->receive();
-					yield $event => Traverser::VALUE;
-				}
-			} finally {
-				unset($loader->index[$blockHash][spl_object_id($channel)]);
+		return Util::traverseChannels([$channel], function() use ($channel, $loader, $blockHash, $chunkHash, $worldId, $world, $chunkX, $chunkZ) {
+			unset($loader->index[$blockHash][spl_object_id($channel)]);
 
-				if (count($loader->index[$blockHash]) === 0) {
-					unset($loader->index[$blockHash]);
-				}
+			if (count($loader->index[$blockHash]) === 0) {
+				unset($loader->index[$blockHash]);
+			}
 
-				if (count($loader->index) === 0) {
-					unset(self::$store[$worldId][$chunkHash]);
-					$world->unregisterChunkLoader($loader, $chunkX, $chunkZ);
-					$world->unregisterChunkListener($loader, $chunkX, $chunkZ);
-				}
+			if (count($loader->index) === 0) {
+				unset(self::$store[$worldId][$chunkHash]);
+				$world->unregisterChunkLoader($loader, $chunkX, $chunkZ);
+				$world->unregisterChunkListener($loader, $chunkX, $chunkZ);
+			}
 
-				if (count(self::$store[$worldId]) === 0) {
-					unset(self::$store[$worldId]);
-				}
+			if (count(self::$store[$worldId]) === 0) {
+				unset(self::$store[$worldId]);
 			}
 		});
 	}
